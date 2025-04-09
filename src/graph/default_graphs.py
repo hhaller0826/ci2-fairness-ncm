@@ -32,14 +32,14 @@ Y
 
 <EDGES>
 X -> Y
-X <-> Y
+X -- Y
 '''
 
 def get_sfm_graph():
     return '''<NODES>
+Y
 Z
 X
-Y
 W
 
 <EDGES>
@@ -48,5 +48,6 @@ X -> W
 Z -> Y
 Z -> W
 W -> Y
-X <-> Z
+X -- Z
 '''
+
