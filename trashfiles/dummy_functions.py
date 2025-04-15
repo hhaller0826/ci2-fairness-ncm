@@ -94,6 +94,7 @@ def sfm_graph(x_label='X', z_label='Z', w_label='W', y_label='Y'):
 
 class CausalGraph(Graph):
     def __init__(self,graph=None, nodes=[], edges=[], assignments=[]):
+        # TODO: Checks (inc acyclic check)
         self.assignments=assignments
         if graph is not None:
             super().__init__(nodes=self.parse_nodes([node['name'] for node in graph.nodes],assignments), edges=graph.edges)
@@ -191,6 +192,24 @@ W -> Y
 X -- Z
 '''
 
+class SFM(CausalGraph):
+    def __init__(self, assignments=[]):
+        self.graph = parseGraph(get_sfm_graph())
+        super().__init__(self.graph, assignments)
+
+    def parse_nodes(self, nodes, assignments=[]):
+        self.X = self.parse_node('X', assignments)
+        self.Y = self.parse_node('Y', assignments)
+        self.Z = self.parse_node('Z', assignments)
+        self.W = self.parse_node('W', assignments)
+        return [self.X, self.Y, self.Z, self.W]
+    
+    def parse_node(self, name, assignments=[]):
+        return {
+            'name': name,
+            'label': name if name not in assignments else name + str(assignments[name])
+        }
+
 def project_to_sfm(graph, projection):
     # TODO: check for incorrect projection
     assignments = {
@@ -199,5 +218,103 @@ def project_to_sfm(graph, projection):
         'W': sum([graph.assignments[z] for z in projection['W']],[]),
         'Y': [*graph.assignments[projection['Y']]]
     }
-    sfm = CausalGraph(graph=parseGraph(get_sfm_graph()), assignments=assignments)
+    sfm = SFM(assignments=assignments)
     return sfm 
+
+def evaluate_fairness_measures(graph, x0, x1):
+    print("GENERAL")
+    print(f"\tTE_[x0={x0},x1={x1}](y) = value")
+    print(f"\tExp-SE_x(y) = value")
+    print(f"\tNDE_[x0={x0},x1={x1}](y) = value")
+    print(f"\tNIE_[x0={x0},x1={x1}](y) = value")
+
+    print("\nx-SPECIFIC")
+    print(f"\tETT_[x0={x0},x1={x1}](y|x) = value")
+    print(f"\tCtf-SE_[x0={x0},x1={x1}](y) = value")
+    print(f"\tCtf-DE_[x0={x0},x1={x1}](y|x) = value")
+    print(f"\tCtf-IE_[x0={x0},x1={x1}](y|x) = value")
+
+    print("\nz-SPECIFIC")
+    print(f"\tz-TE_[x0={x0},x1={x1}](y|x) = value")
+    print(f"\tz-DE_[x0={x0},x1={x1}](y|x) = value")
+    print(f"\tz-IE_[x0={x0},x1={x1}](y|x) = value")
+
+
+def fairness_cookbook(data, X, W, Z, Y, x0, x1):
+    return (data, X, W, Z, Y, x0, x1)
+
+def evaluate_general_measures(graph, x0, x1):
+    print("GENERAL")
+    print(f"\tTE_[x0={x0},x1={x1}](y) = value")
+    print(f"\tExp-SE_x(y) = value")
+    print(f"\tNDE_[x0={x0},x1={x1}](y) = value")
+    print(f"\tNIE_[x0={x0},x1={x1}](y) = value")
+
+def evaluate_xspec_measures(graph, x0, x1):
+    print("x-SPECIFIC")
+    print(f"\tETT_[x0={x0},x1={x1}](y|x) = value")
+    print(f"\tCtf-SE_[x0={x0},x1={x1}](y) = value")
+    print(f"\tCtf-DE_[x0={x0},x1={x1}](y|x) = value")
+    print(f"\tCtf-IE_[x0={x0},x1={x1}](y|x) = value")
+
+def evaluate_zspec_measures(graph, x0, x1):
+    print("z-SPECIFIC")
+    print(f"\tz-TE_[x0={x0},x1={x1}](y|x) = value")
+    print(f"\tz-DE_[x0={x0},x1={x1}](y|x) = value")
+    print(f"\tz-IE_[x0={x0},x1={x1}](y|x) = value")
+
+def autoplot(cookbook, decompose="", dataset=None, type=''):
+    print("pretend this is a graph")
+    (_, _, _, _, _, x0, x1) = cookbook
+    if decompose == "gen":
+        evaluate_general_measures(None, x0, x1)
+    elif decompose == "zspec":
+        evaluate_zspec_measures(None, x0, x1)
+    else:
+        evaluate_xspec_measures(None, x0, x1)
+
+def fair_predictions(data, sfm, x0, x1, bn):
+    pass
+
+def fairadapt(graph, data): pass
+def predict(fair_pred, data): pass
+def fair_decisions(data, sfm, x0, x1, po_transform, po_diff_sign): 
+    return fairness_cookbook(data, sfm.X, sfm.W, sfm.Z, sfm.Y, x0=x0, x1=x1)
+
+def total_variation(y, e=[]):
+    return "P(" + y + evidence(e) + ")"
+
+def evidence(e=[]):
+    ev = ""
+    for i in range(len(e)):
+        if i==0: ev += " | "
+        (node,val) = e[i]
+        ev += node + "=" + str(val)
+        if i < len(e)-1: ev += ", "
+    return ev
+
+def condition(c=[]):
+    if len(c)==0: return ""
+    cond = "_{"
+    for i in range(len(c)):
+        if i>0: cond += ","
+        (node,val) = c[i]
+        cond += node + "=" + str(val)
+    return cond + "}"
+
+def total_effect(y, e=[], c=[]):
+    cond = condition(c)
+    te = "P(" + y + cond
+    te += evidence([(val[0]+cond,val[1]) for val in e])
+    return te + ")"
+
+class CTFQuery():
+    def __init__(self):
+        pass
+
+
+def ett(y, c=[], e=[]):
+    return "P(" + y + condition(c) + evidence(e) + ")"
+
+def pnps(y, c=[], e=[]):
+    return "P(Y_{X=x" + "} = y|X=x', Y=y'"
