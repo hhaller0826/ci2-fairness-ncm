@@ -281,8 +281,20 @@ def predict(fair_pred, data): pass
 def fair_decisions(data, sfm, x0, x1, po_transform, po_diff_sign): 
     return fairness_cookbook(data, sfm.X, sfm.W, sfm.Z, sfm.Y, x0=x0, x1=x1)
 
-def total_variation(y, e=[]):
-    return "P(" + y + evidence(e) + ")"
+def probability(y, val, evidence=None, intervention=None):
+    p = "P(" + y + "=" + str(val)
+    if evidence is not None or intervention is not None: 
+        p += " | "
+    cond = [x+"="+str(evidence[x]) for x in evidence] if evidence else []
+    do = ["do("+x+"="+str(intervention[x])+")" for x in intervention] if intervention else []
+
+    return p + ", ".join(cond+do) + ")"
+    
+def total_variation(y, val, x, x0, x1=1):
+    val,x0,x1 = str(val),str(x0),str(x1)
+    tv = "P(" + y + "=" + val + " | " + x + "=" + x1 + ")"
+    tv += " - P(" + y + "=" + val + " | " + x + "=" + x0 + ")"
+    return probability(y,val,{x:x1})+" - "+probability(y,val,{x:x0})
 
 def evidence(e=[]):
     ev = ""
