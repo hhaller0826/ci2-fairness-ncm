@@ -328,5 +328,8 @@ class CTFQuery():
 def ett(y, c=[], e=[]):
     return "P(" + y + condition(c) + evidence(e) + ")"
 
-def pnps(y, c=[], e=[]):
-    return "P(Y_{X=x" + "} = y|X=x', Y=y'"
+
+def pnps(outcome_var, outcome_vals, treatment_var, treatment_vals):
+    pnps="P(Y_{X="+str(treatment_vals['whatif'])+"} = "+str(outcome_vals['whatif'])
+    pnps+="|X="+str(treatment_vals['actual'])+", Y="+str(outcome_vals['actual'])+")"
+    return pnps
