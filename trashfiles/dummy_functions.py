@@ -3,10 +3,11 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import warnings
 from src.graph.utils import get_positions,plot_causal_graph
-from src.causalaibook.fusion import * 
-from src.causalaibook.graph.classes.graph import Graph
+# from src.causalaibook.fusion import * 
+# from src.causalaibook.graph.classes.graph import Graph
 import numpy as np
-from src.causalaibook.utils import plot_causal_diagram
+# from src.causalaibook.utils import plot_causal_diagram
+from src.graph.causal_graph import *
 
 def graph_string(cg):
     lines = ["<NODES>\n"]
@@ -71,78 +72,78 @@ class Model():
 def run_training(graph, model, hyperparameters):
     print(f'training ran with: \n Graph: {graph} \n Model: {model} \n Params: {hyperparameters}')
 
-def sfm_graph(x_label='X', z_label='Z', w_label='W', y_label='Y'):
-    W,X,Y,Z = 'W','X','Y','Z'
-    nodes = [
-        {'name': Y, 'label':y_label},
-        {'name': Z, 'label':z_label},
-        {'name': X, 'label':x_label},
-        {'name': W, 'label':w_label}
-    ]
-    edges = [
-        {'from_': X, 'to_': Z, 'type_': bidirectedEdgeType},
-        {'from_': X, 'to_': W},
-        {'from_': X, 'to_': Y},
-        {'from_': Z, 'to_': W},
-        {'from_': Z, 'to_': Y},
-        {'from_': W, 'to_': Y},
-    ]
-    return Graph(nodes=nodes,edges=edges)
+# def sfm_graph(x_label='X', z_label='Z', w_label='W', y_label='Y'):
+#     W,X,Y,Z = 'W','X','Y','Z'
+#     nodes = [
+#         {'name': Y, 'label':y_label},
+#         {'name': Z, 'label':z_label},
+#         {'name': X, 'label':x_label},
+#         {'name': W, 'label':w_label}
+#     ]
+#     edges = [
+#         {'from_': X, 'to_': Z, 'type_': bidirectedEdgeType},
+#         {'from_': X, 'to_': W},
+#         {'from_': X, 'to_': Y},
+#         {'from_': Z, 'to_': W},
+#         {'from_': Z, 'to_': Y},
+#         {'from_': W, 'to_': Y},
+#     ]
+#     return Graph(nodes=nodes,edges=edges)
 
 
 
 
-class CausalGraph(Graph):
-    def __init__(self,graph=None, nodes=[], edges=[], assignments=[]):
-        # TODO: Checks (inc acyclic check)
-        self.assignments=assignments
-        if graph is not None:
-            super().__init__(nodes=self.parse_nodes([node['name'] for node in graph.nodes],assignments), edges=graph.edges)
-        else:
-            super().__init__(nodes=self.parse_nodes(nodes,assignments), edges=self.parse_edges(edges))
+# class CausalGraph(Graph):
+#     def __init__(self,graph=None, nodes=[], edges=[], assignments=[]):
+#         # TODO: Checks (inc acyclic check)
+#         self.assignments=assignments
+#         if graph is not None:
+#             super().__init__(nodes=self.parse_nodes([node['name'] for node in graph.nodes],assignments), edges=graph.edges)
+#         else:
+#             super().__init__(nodes=self.parse_nodes(nodes,assignments), edges=self.parse_edges(edges))
 
 
-    def parse_nodes(self, nodes, assignments=[]):
-        ns = []
+#     def parse_nodes(self, nodes, assignments=[]):
+#         ns = []
 
-        # convert tuple to list of dictionaries
-        for name in nodes:
-            label = name
-            if name in assignments:
-                label += ": " + str(assignments[name])
-            n = {
-                'name': name,
-                'label': label
-            }
+#         # convert tuple to list of dictionaries
+#         for name in nodes:
+#             label = name
+#             if name in assignments:
+#                 label += ": " + str(assignments[name])
+#             n = {
+#                 'name': name,
+#                 'label': label
+#             }
 
-            ns.append(n)
+#             ns.append(n)
 
-        return ns
+#         return ns
     
-    def parse_edges(self, edges):
-        es = []
+#     def parse_edges(self, edges):
+#         es = []
 
-        # convert tuple to list of dictionaries
-        for edge in edges:
-            if len(edge) < 2: continue
-            type = bidirectedEdgeType.id_ if len(edge)>2 and edge[2]=='bidirected' else 'directed'
-            e = {'from_': edge[0], 'to_': edge[1], 'type_': type}
+#         # convert tuple to list of dictionaries
+#         for edge in edges:
+#             if len(edge) < 2: continue
+#             type = bidirectedEdgeType.id_ if len(edge)>2 and edge[2]=='bidirected' else 'directed'
+#             e = {'from_': edge[0], 'to_': edge[1], 'type_': type}
             
-            es.append(e)
+#             es.append(e)
 
-        return es
+#         return es
     
-    def plot(self, scale=1):
-        nodes = [node['name'] for node in self.nodes]
-        n = len(nodes)
-        corners = []
-        for i in range(n):
-            angle = 2 * np.pi * i / n
-            x = np.cos(angle) * scale
-            y = np.sin(angle) * scale
-            corners.append((x.item(), y.item()))
-        positions = {nodes[i]: corners[i] for i in range(n)}
-        return plot_causal_diagram(self, node_positions=positions)
+#     def plot(self, scale=1):
+#         nodes = [node['name'] for node in self.nodes]
+#         n = len(nodes)
+#         corners = []
+#         for i in range(n):
+#             angle = 2 * np.pi * i / n
+#             x = np.cos(angle) * scale
+#             y = np.sin(angle) * scale
+#             corners.append((x.item(), y.item()))
+#         positions = {nodes[i]: corners[i] for i in range(n)}
+#         return plot_causal_diagram(self, node_positions=positions)
 
 
 def example1():
@@ -176,21 +177,21 @@ def example1():
     }
     return CausalGraph(nodes=nodes,edges=edges,assignments=assignments)
 
-def get_sfm_graph():
-    return '''<NODES>
-Y
-Z
-X
-W
+# def get_sfm_graph():
+#     return '''<NODES>
+# Y
+# Z
+# X
+# W
 
-<EDGES>
-X -> Y
-X -> W
-Z -> Y
-Z -> W
-W -> Y
-X -- Z
-'''
+# <EDGES>
+# X -> Y
+# X -> W
+# Z -> Y
+# Z -> W
+# W -> Y
+# X -- Z
+# '''
 
 class SFM(CausalGraph):
     def __init__(self, assignments=[]):

@@ -1,9 +1,0 @@
-<NODES>
-I
-X
-Y
-
-<EDGES>
-I -> X
-X -> Y
-X <-> Y

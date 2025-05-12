@@ -1,15 +1,37 @@
 import numpy as np
-from src.causalaibook.utils import plot_causal_diagram
+from src.graph.causal_graph import CausalGraph
 
-def get_positions(nodes, scale=1):
-    n = len(nodes)
-    corners = []
-    for i in range(n):
-        angle = 2 * np.pi * i / n
-        x = np.cos(angle) * scale
-        y = np.sin(angle) * scale
-        corners.append((x.item(), y.item()))
-    return {nodes[i]: corners[i] for i in range(n)}
+graph_choices = {'backdoor', 'bow', 'sfm'}
 
-def plot_causal_graph(G, scale=1):
-   return plot_causal_diagram(G, node_positions=get_positions([node['name'] for node in G.nodes], scale))
+def get_predefined_graph(type) -> CausalGraph:
+    assert type in graph_choices
+
+    nodes = None
+    be = []
+    de = []
+
+    if type == 'backdoor':
+        X, Z, Y = 'X', 'Z', 'Y'
+        nodes = [X, Z, Y]
+        de = [
+            (Z, X),
+            (Z, Y),
+            (X, Y)
+        ]
+    elif type == 'bow':
+        X, Y = 'X', 'Y'
+        nodes = [X, Y]
+        be = [(X, Y)]
+        de = [(X, Y)]
+    elif type == 'sfm':
+        X, Z, W, Y = 'X', 'Z', 'W', 'Y'
+        nodes = [X, Z, W, Y]
+        be = [(X, Z)]
+        de = [
+            (X, Y),
+            (X, W),
+            (Z, Y),
+            (Z, W),
+            (W, Y)
+        ]
+    return CausalGraph(nodes, directed_edges=de, bidirected_edges=be)
