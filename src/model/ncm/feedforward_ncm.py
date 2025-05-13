@@ -16,7 +16,7 @@ class FF_NCM(SCM):
                  default_u_size=1, f={}, hyperparams=None, discrete_vals=None, scale={}):
         if hyperparams is None:
             hyperparams = dict()
-        self.discrete_vals = discrete_vals if discrete_vals is not None else cg.v
+        # self.discrete_vals = discrete_vals if discrete_vals is not None else cg.v
 
         self.cg = cg
         # vassign = cg.assignments.values()
@@ -40,11 +40,7 @@ class FF_NCM(SCM):
         ret = {}
         for k in samples:
             x = samples[k]
-            scaled = T.tensor([[self.scale[k][i](x[j][i]).item() for i in range(len(x[0]))] for j in range(len(x))])
-            if k in self.discrete_vals:
-                ret[k] = T.round(scaled)
-            else:
-                ret[k] = scaled
+            ret[k] = T.tensor([[self.scale[k][i](x[j][i]).item() for i in range(len(x[0]))] for j in range(len(x))])
         return ret
         # return {k: T.round(samples[k]) if k in self.discrete_vals else samples[k] for k in samples}
 

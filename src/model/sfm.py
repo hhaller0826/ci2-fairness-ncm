@@ -1,28 +1,43 @@
 from collections.abc import Iterable
 import torch as T
+import itertools
 
 from src.model.scm import SCM
 
 class SFM(SCM):
-    def __init__(self, model: SCM, projection, og_assignments=None):
-        self.v_size = {k:len(og_assignments[k]) for k in og_assignments} if og_assignments is not None else model.v_size
+    def __init__(self, model: SCM, projection, data=None):
+        self.v_size = {k:len(data.assignments[k]) for k in data.assignments} if getattr(data, 'assignments', None) is not None else getattr(model, 'v_size')
         # TODO: check valid projection
         # WILL need graph to do that
         # TODO: translate convert_evaluation function
-        V, f = project_to_sfm(model, projection)
+        V, f = project_to_sfm(model, projection, self.v_size)
         super().__init__(v=V, f=f, pu=model.pu)
 
         self.X = 'X'
         self.Y = 'Y'
         self.Z = 'Z' if 'Z' in self.v else None 
         self.W = 'W' if 'W' in self.v else None 
+
         self.og_model = model
+        self.assignments = {k: list(itertools.chain.from_iterable([data.assignments[v] for v in projection[k]])) for k in projection}
         self.projection = projection
 
+        self.scale = data.get_assigned_scale(self.assignments)
+    
     def convert_evaluation(self, samples):
         # return super().convert_evaluation(samples)
-        return self.og_model.convert_evaluation(samples)
+        # return self.og_model.convert_evaluation(samples)
+        ret = {}
+        for k in samples:
+            x = samples[k]
+            ret[k] = T.tensor([[self.scale[k][i](x[j][i]).item() for i in range(len(x[0]))] for j in range(len(x))])
+        return ret
     
+    def print_projection(self):
+        print(f'Protected Attribute: {self.assignments['X']}')
+        print(f'Confounders:         {self.assignments.get('Z', None)}')
+        print(f'Mediators:           {self.assignments.get('W', None)}')
+        print(f'Outcome:             {self.assignments['Y']}')
 
 def process_projection(projection):
     X = projection['X']

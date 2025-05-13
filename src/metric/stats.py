@@ -48,3 +48,18 @@ def bootstrap_ci_2d(data, num_resamples=10000, confidence=0.95, axis=0, seed=Non
     margin = (upper - lower) / 2
 
     return original_mean, margin, lower, upper
+
+
+def diff_from_margins(mean1, moe1, mean2, moe2, scale=1, print_output=False):
+    diff = mean1 - mean2
+    moe_diff = np.sqrt(moe1**2 + moe2**2)
+    lower = diff - moe_diff
+    upper = diff + moe_diff
+    if print_output:
+        print(f'\t diff_from_margins')
+        print(f'\t mean: {mean1:.4f}-{mean2:.4f} = {diff:.4f}')
+        print(f'\t dev: {moe1:.4f}+{moe2:.4f} = {moe_diff:.4f}')
+        print(f'\t min: {scale*(lower):.4f}')
+        print(f'\t max: {scale*(upper):.4f}')
+        print()
+    return diff, moe_diff, lower, upper

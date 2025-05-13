@@ -9,10 +9,11 @@ from sklearn.model_selection import train_test_split
 
 
 class ProcessedData:
-    def __init__(self, df, assignments, categorical_vars=[], test_size=0.1, batch_size=32):
+    def __init__(self, df, assignments, categorical_vars=[], discrete_vars=[], test_size=0.1, batch_size=32):
         self._assignments = assignments
         self.columns = self._get_columns(assignments)
         self.categorical_vars = categorical_vars
+        self.discrete_vars = set(discrete_vars).intersection(set(categorical_vars))
         self.batch_size = batch_size
 
         self.train_df, self.test_df = self._get_train_test_split(df, test_size)
@@ -49,10 +50,16 @@ class ProcessedData:
                 maxval = abbr_df[feat].nunique()-1
                 minval = 0
                 self.ret_map[feat] = [encoder.inverse_transform([i]).item() for i in range(maxval+1)]
+                
             else:
                 maxval = abbr_df[feat].max()
                 minval = abbr_df[feat].min()
-            self.scale[feat] = (lambda x, maxval=maxval, minval=minval: (x*(maxval-minval)) + minval)
+                
+            if feat in self.categorical_vars:
+                self.scale[feat] = (lambda x, maxval=maxval, minval=minval: T.round((x*(maxval-minval)) + minval))
+            else:
+                self.scale[feat] = (lambda x, maxval=maxval, minval=minval: (x*(maxval-minval)) + minval)
+
             # easiest to use NN with a sigmoid so we need to normalize the values between 0 and 1
             # TODO: currently just hoping the real max & min values are in the dataset. if this is grades but everyone got B's and C's, then my algo will never predict A or D
             dat_train[feat] = dat_train[feat].apply(lambda x: (x-minval)/(maxval-minval))
@@ -68,8 +75,9 @@ class ProcessedData:
             cols.extend(features)
         return cols
 
-    def get_assigned_scale(self):
-        return {v: [self.scale[self.assignments[v][i]] for i in range(len(self.assignments[v]))] for v in self.assignments}
+    def get_assigned_scale(self, assignments=None):
+        assignments = assignments if assignments else self.assignments
+        return {v: [self.scale[assignments[v][i]] for i in range(len(assignments[v]))] for v in assignments}
     
     def print_df(self, n=5, show_orig=False):
         if show_orig: return self._print_df.head(n)

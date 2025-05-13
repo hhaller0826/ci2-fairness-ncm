@@ -61,7 +61,7 @@ class CausalGraph:
             if marks[v] == 2:
                 return
             if marks[v] == 1:
-                raise ValueError('Not a DAG.')
+                raise ValueError('The graph cannot have cycles.')
 
             marks[v] = 1
             for c in self.ch[v]:
@@ -128,26 +128,26 @@ class CausalGraph:
         positions = {self.v[i]: corners[i] for i in range(n)}
 
         # return plot_causal_diagram(self, node_positions=positions)
-        dot_text = convert_to_dot(self, node_positions=positions)
+        dot_text = self.convert_to_dot(node_positions=positions)
         return Source(dot_text, engine="neato")
 
-def convert_to_dot(graph, path_1=[], path_2=[], nodes=[], node_positions={}):
-    dot_str = "digraph G {\n  rankdir=LR;\n"
-    # Add nodes with positions
-    for node in graph.v:
-        pos = (
-            f'pos="{node_positions[node][0]},{node_positions[node][1]}!"'
-            if node in node_positions
-            else ""
-        )
-        fillcolor = "style=filled, fillcolor=lightblue" if node in nodes else ""
-        dot_str += f'  {node} [label="{node}" {pos} {fillcolor}];\n'
+    def convert_to_dot(self, path_1=[], path_2=[], nodes=[], node_positions={}):
+        dot_str = "digraph G {\n  rankdir=LR;\n"
+        # Add nodes with positions
+        for node in self.v:
+            pos = (
+                f'pos="{node_positions[node][0]},{node_positions[node][1]}!"'
+                if node in node_positions
+                else ""
+            )
+            fillcolor = "style=filled, fillcolor=lightblue" if node in nodes else ""
+            dot_str += f'  {node} [label="{self.assignments.get(node,node)}" {pos} {fillcolor}];\n'
 
-    for a,b in graph.de:
-        dot_str += f'  {a} -> {b};\n'
+        for a,b in self.de:
+            dot_str += f'  {a} -> {b};\n'
 
-    for a,b in graph.be:
-        arrow_type = (f"[dir=both, style=dashed, constraint=false, splines=curved]")
-        dot_str += f'  {a} -> {b} {arrow_type};\n'
+        for a,b in self.be:
+            arrow_type = (f"[dir=both, style=dashed, constraint=false, splines=curved]")
+            dot_str += f'  {a} -> {b} {arrow_type};\n'
 
-    return dot_str + "}"
+        return dot_str + "}"

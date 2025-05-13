@@ -69,5 +69,3 @@ class SCM(nn.Module):
                 return T.sum(-log(1 - input))
             else:
                 raise ValueError("Comparison to {} of type {} is not allowed.".format(val, type(val)))
-
-    

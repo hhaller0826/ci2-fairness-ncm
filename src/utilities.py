@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 
+from src.model.scm import SCM
 from src.model.ncm.feedforward_ncm import FF_NCM
 from src.model.distribution import *
 from src.graph.causal_graph import CausalGraph
@@ -10,9 +11,9 @@ from src.data import ProcessedData
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-def process_data_assignments(df, assignments, graph: CausalGraph, categorical_vars=[], test_size=0.1):
+def process_data_assignments(df, assignments, graph: CausalGraph, categorical_vars=[], discrete_vars=[], test_size=0.1):
     check_assignments(assignments=assignments, data=df, graph=graph)
-    return ProcessedData(df, assignments, categorical_vars, test_size)
+    return ProcessedData(df, assignments, categorical_vars, discrete_vars, test_size)
 
 # def process_data_assignments(df, assignments, graph: CausalGraph, categorical_vars=[], test_size=0.1):
 #     columns = check_assignments(assignments=assignments, data=df, graph=graph)
@@ -93,6 +94,63 @@ def get_ncm(graph, assignments={}, hyperparams=None, scale={}):
     v_size = {k:len(assignments[k]) for k in assignments}
     if model_choice == 'ff':
         return FF_NCM(graph, hyperparams=hyperparams, v_size=v_size, scale=scale)
+
+def process_projection(projection):
+    X = projection['X']
+    Z = [*set(projection.get('Z',[]))]
+    W = [*set(projection.get('W',[]))]
+    Y = projection['Y']
+    return X, Z, W, Y
+
+def check_projection(projection, cg: CausalGraph):
+    # check attributes in projection 
+    assert 'X' in projection, f'Must specify a protected attribute X.'
+    assert 'Y' in projection, f'Must specify an outcome Y.'
+    if 'Z' not in projection: warnings.warn(f'No confounders assigned.')
+    if 'W' not in projection: warnings.warn(f'No mediators assigned.')
+
+    unassgn = projection.keys()-{'X','Y','Z','W'}
+    if len(unassgn) > 0: warnings.warn(f'{unassgn} will not be used as variables in the SFM. The following will remain unassigned: {[projection[k] for k in unassgn][0]}', UserWarning)
+
+    X, Z, W, Y = process_projection(projection)
+    err = ''
+
+    # check duplicates
+    sub_cg = [X, *Z, *W, Y]
+    if X in Z or X in W or X == Y: err += f'Duplicate value: {X}\n'
+    if Y in Z or Y in W: err += f'Duplicate value: {Y}\n'
+    if set(Z).intersection(set(W)): err += f'Duplicate value: {set(Z).intersection(set(W))}\n'
     
+    # check directed arrows, assignments
+    if X not in cg.v: raise ValueError(f'{X} is not a known variable.\n')
+    if Y not in cg.v: raise ValueError(f'{Y} is not a known variable.\n')
+    if Y in cg.pa[X]: err += f'[Edge: {Y}->{X}] Cannot have arrow from Y to X in Standard Fairness Model.\n'
+    
+    for w in W:
+        if w not in cg.v: raise ValueError(f'{w} is not a known variable.\n')
+        if w in cg.pa[X]: err += f'[Edge: {w}->{X}] Cannot have arrow from W to X in Standard Fairness Model.\n'
+
+        if Y in cg.pa[w]: err += f'[Edge: {Y}->{w}] Cannot have arrow from Y to W in Standard Fairness Model.\n'
+
+        # Check bidirected arrows with W
+        for ne in cg.ne[w]:
+            if ne==X: err += f'[Edge: {X}<->{w}] Cannot have bidirected arrow between X and W'
+            elif ne in Z: err += f'[Edge: {ne}<->{w}] Cannot have bidirected arrow between Z and W'
+            elif ne==Y: f'[Edge: {w}<->{Y}] Cannot have bidirected arrow between W and Y'
+
+    for z in Z: 
+        if z not in cg.v: raise ValueError(f'{z} is not a known variable.\n')
+        if z in cg.pa[X]: err += f'[Edge: {z}->{X}] Cannot have arrow from Z to X in Standard Fairness Model.\n'
+
+        for paz in cg.pa[z]:
+            if paz==Y: err += f'[Edge: {Y}->{z}] Cannot have arrow from Y to Z in Standard Fairness Model.\n'
+            if paz in W: err += f'[Edge: {paz}->{z}] Cannot have arrow from W to Z in Standard Fairness Model.\n'
+            if paz==X: err += f'[Edge: {X}->{z}] Cannot have arrow from X to Z in Standard Fairness Model.\n'
+
+    # check bidirected arrows
+    for ne in cg.ne[Y]:
+        if ne==X: err += f'[Edge: {X}<->{Y}] Cannot have bidirected arrow between X and Y'
+        elif ne in Z: err += f'[Edge: {ne}<->{Y}] Cannot have bidirected arrow between Z and Y'
 
     
+    if len(err) > 0: raise ValueError(err)

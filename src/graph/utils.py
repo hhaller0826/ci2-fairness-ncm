@@ -18,14 +18,17 @@ def get_predefined_graph(type) -> CausalGraph:
             (Z, Y),
             (X, Y)
         ]
+
     elif type == 'bow':
         X, Y = 'X', 'Y'
         nodes = [X, Y]
         be = [(X, Y)]
         de = [(X, Y)]
+
     elif type == 'sfm':
         X, Z, W, Y = 'X', 'Z', 'W', 'Y'
-        nodes = [X, Z, W, Y]
+        # nodes = [X, Z, W, Y]
+        nodes = [Z, Y, X, W]
         be = [(X, Z)]
         de = [
             (X, Y),
