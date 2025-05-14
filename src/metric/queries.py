@@ -81,7 +81,7 @@ def _probability(model, var, val, evidence={}, intervention={}, neq_evidence={},
     - `probability('Y',1,intervention={'Z':1})` will return $P(Y=1 | do(Z=1))$
     """
     U, _ = _get_conditioned_u(model, u, conditions=evidence, opposite_conditions=neq_evidence)
-    sampleY = sample_ctf(model, CTFTerm({var}, do_vals=intervention), u=U)[var]
+    sampleY = sample_ctf(model, CTFTerm(var, do_vals=intervention), u=U)[var]
     n = sampleY.numel()
     return 0 if n==0 else (sampleY == val).sum().item() / n 
 
@@ -100,7 +100,7 @@ def get_evidence(var, eq, neq, evidence, neq_evidence):
         neq_evidence[var] = neq
     return evidence, neq_evidence
 
-def total_variation(model, var, val, attr, aval1, aval0=None):
+def total_variation(model, var, val, attr, aval1, aval0=None, verbose=True):
     U = model.pu.sample(10000)
     x1 = {attr: aval1}
     pY_condx1 = _probability(model, var, val, evidence=x1, u=U)
@@ -108,9 +108,12 @@ def total_variation(model, var, val, attr, aval1, aval0=None):
     ev, neq_ev = get_evidence(attr, eq=aval0, neq=aval1, evidence={}, neq_evidence={})
     pY_condx0 = _probability(model, var, val, evidence=ev, neq_evidence=neq_ev, u=U)
 
-    return pY_condx1 - pY_condx0
+    tv = pY_condx1 - pY_condx0
+    if verbose: print(f'TV({var}={val}) = {pY_condx1:.4f} - {pY_condx0:.4f} = {tv:.4f}')
+        
+    return tv
 
-def total_effect(model, var, val, attr, aval1, aval0, evidence={}):
+def total_effect(model, var, val, attr, aval1, aval0, evidence={}, verbose=True):
     U = model.pu.sample(10000)
     x1 = {attr: aval1}
     pY_dox1 = _probability(model, var, val, intervention=x1, evidence=evidence, u=U)
@@ -118,15 +121,24 @@ def total_effect(model, var, val, attr, aval1, aval0, evidence={}):
     x0 = {attr: aval0}
     pY_dox0 = _probability(model, var, val, intervention=x0, evidence=evidence, u=U)
 
-    return pY_dox1 - pY_dox0
+    te = pY_dox1 - pY_dox0
+    if verbose:
+        z = ','.join([f'{k}={evidence[k]}' for k in evidence])
+        print(f'TE({var}={val}{' | '+z if z else ''}) = {pY_dox1:.4f} - {pY_dox0:.4f} = {te:.4f}')
 
-def ett(model, var, val, treatment_var, treatment_vals):
+    return te
+
+def ett(model, var, val, treatment_var, treatment_vals, verbose=True):
     assert 'whatif' in treatment_vals
     dox = {treatment_var: treatment_vals['whatif']}
     ev, neq_ev = get_evidence(treatment_var, treatment_vals.get('actual',None), treatment_vals.get('whatif',None), evidence={}, neq_evidence={})
-    return _probability(model, var, val, intervention=dox, evidence=ev, neq_evidence=neq_ev)
+    ett = _probability(model, var, val, intervention=dox, evidence=ev, neq_evidence=neq_ev)
+    if verbose:
+        interv_str = f'actually {treatment_vals['actual']}' if treatment_vals.get('actual',None) else f'not actually {treatment_vals['whatif']}'
+        print(f'{ett:.4f}: probability that {var}={val} if we had intervened to make {treatment_var}={treatment_vals['whatif']}, given that {treatment_var} was {interv_str}.')
+    return ett
     
-def pnps(model, var, vals, treatment_var, treatment_vals, data=None):
+def pnps(model, var, vals, treatment_var, treatment_vals, verbose=True):
     """
     Return PNPSx,x' = P(Y_x = y | Y=y', X=x')
     """
@@ -137,4 +149,11 @@ def pnps(model, var, vals, treatment_var, treatment_vals, data=None):
     ev, neq_ev = get_evidence(var, vals.get('actual',None), yval, evidence={}, neq_evidence={})
     get_evidence(treatment_var, treatment_vals.get('actual',None), xval, ev, neq_ev)
 
-    return _probability(model, var, yval, intervention={treatment_var:xval}, evidence=ev, neq_evidence=neq_ev, u=U)
+    pnps = _probability(model, var, yval, intervention={treatment_var:xval}, evidence=ev, neq_evidence=neq_ev, u=U)
+
+    if verbose:
+        interv_strx = f'{treatment_var} was actually {treatment_vals['actual']}' if treatment_vals.get('actual',None) else f'{treatment_var} was not actually {treatment_vals['whatif']}'
+        interv_stry = f'{var} was actually {vals['actual']}' if vals.get('actual',None) else f'{var} was not actually {vals['whatif']}'
+        print(f'{pnps:.4f}: probability that {var}={vals['whatif']} if we had intervened to make {treatment_var}={treatment_vals['whatif']}, given that {interv_stry} and {interv_strx}.')
+
+    return pnps

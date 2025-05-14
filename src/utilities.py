@@ -57,8 +57,7 @@ def process_data_assignments(df, assignments, graph: CausalGraph, categorical_va
 def check_assignments(data, assignments: dict, graph: CausalGraph):
     # Check that all nodes are being assigned
     assert assignments.keys() <= graph.set_v, f'Node {assignments.keys()-graph.set_v} not in graph'
-    assert assignments.keys() | graph.assignments.keys() == graph.set_v, f'All nodes must have an assignment'
-
+    
     assigned_features = []
     for features in assignments.values():
         assert features is not None and len(features) > 0, f'All nodes must have an assignment'
@@ -71,7 +70,7 @@ def check_assignments(data, assignments: dict, graph: CausalGraph):
         raise ValueError('Feature was assigned to a variable more than once: {}'.format(duplicates))
 
     # check for unknown features:
-    cols = set(data.columns) # assuming this is a DataFrame object rn but prob wont be 
+    cols = set(data.columns) # assuming this is a DataFrame object rn 
     unknown_features = feature_set - cols
     if len(unknown_features) > 0:
         raise ValueError('Unknown feature assignment: {}'.format(unknown_features))
