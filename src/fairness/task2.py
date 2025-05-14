@@ -280,23 +280,112 @@ def pred_nn_proba(model, test_data, task_type):
         if task_type == 'classification':
             predictions = torch.sigmoid(predictions)  # Apply sigmoid to get probabilities
     return predictions.numpy()
-  
-# learning_rates = [0.1, 0.01, 0.001, 0.0001]
-# best_lr = None
-# lowest_loss = float('inf')
-# 
-# for lr in learning_rates:
-#     print(f'Training with lr={lr}')
-#     eval_loss = train_w_es(compas_data, lmbd=0.1, lr=lr, epochs=1000, patience=5,
-#                            loss=True) 
-#     if eval_loss < lowest_loss:
-#         lowest_loss = eval_loss
-#         best_lr = lr
-# 
-# print(f'Best learning rate: {best_lr} with loss: {lowest_loss}')
 
-# train_w_es(compas_data, test_data = compas_data,
-#            x_col = ['race'], y_col = ['two_year_recid'],
-#            w_cols = ['juv_fel', 'juv_misd', 'juv_other', 'priors', 'charge'],
-#            z_cols = ['sex', 'age'],
-#            lmbd=1, lr=0.001, epochs=1000, patience=100, verbose=True, batch_size=256)
+def train_w_es_from_model(model_scm, lmbd, n_samples=5000, lr=0.001,
+                          epochs=500, patience=20, max_restarts=5,
+                          eta_de=0, eta_ie=0, eta_se_x1=0, eta_se_x0=0,
+                          relu_eps=False, eps=0.005, batch_size=512,
+                          verbose=False):
+
+    # Sample data
+    data = model_scm(evaluating=True, n=n_samples)
+    X = data['X']
+    Z = data['Z']
+    W = data['W']
+    Y = data['Y']
+
+    task_type = 'regression' if len(torch.unique(Y)) > 2 else 'classification'
+
+    # Estimate P(X=1 | Z) using FF_NCM's f['X'] directly
+    with torch.no_grad():
+        px_z = torch.sigmoid(model_scm.f['X']({ 'Z': Z }, None)) if task_type == 'classification' else model_scm.f['X']({ 'Z': Z }, None)
+        px = X.float().mean()
+
+    # Construct feature matrix and indices
+    fts = torch.cat([X, Z, W], dim=1)
+    x_idx = 0  # Since X is the first column in fts
+
+    best_global_loss = float('inf')
+    best_model_global = None
+    restarts = 0
+
+    while restarts <= max_restarts:
+        model = TwoLayerArchitecture(input_size=fts.shape[1], hidden_size=16, output_size=1)
+        loss_fn = nn.BCEWithLogitsLoss() if task_type == 'classification' else nn.MSELoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+        fts0 = fts.clone()
+        fts1 = fts.clone()
+        fts0[:, x_idx] = 0
+        fts1[:, x_idx] = 1
+
+        Y_lbl = Y.unsqueeze(1).float()
+        best_loss = float('inf')
+        counter = 0
+
+        for epoch in range(epochs):
+            permutation = torch.randperm(fts.size(0))
+            for i in range(0, fts.size(0), batch_size):
+                indices = permutation[i:i+batch_size]
+                batch_fts = fts[indices]
+                batch_lbl = Y_lbl[indices]
+
+                batch_fts0 = batch_fts.clone()
+                batch_fts1 = batch_fts.clone()
+                batch_fts0[:, x_idx] = 0
+                batch_fts1[:, x_idx] = 1
+
+                pred = model(batch_fts)
+                pred0 = model(batch_fts0)
+                pred1 = model(batch_fts1)
+
+                bce_loss = loss_fn(pred, batch_lbl)
+                custom = causal_loss(pred, pred0, pred1,
+                                     batch_fts[:, [x_idx]],
+                                     batch_fts[:, 1:1+Z.shape[1]],
+                                     batch_fts[:, 1+Z.shape[1]:], 
+                                     batch_lbl, px_z[indices],
+                                     eta_de, eta_ie, eta_se_x1, eta_se_x0,
+                                     relu_eps, eps, task_type)
+                total_loss = bce_loss + lmbd * custom
+
+                optimizer.zero_grad()
+                total_loss.backward()
+                optimizer.step()
+
+            with torch.no_grad():
+                pred = model(fts)
+                pred0 = model(fts0)
+                pred1 = model(fts1)
+                eval_bce = loss_fn(pred, Y_lbl)
+                eval_custom = causal_loss(pred, pred0, pred1,
+                                          fts[:, [x_idx]],
+                                          fts[:, 1:1+Z.shape[1]],
+                                          fts[:, 1+Z.shape[1]:],
+                                          Y_lbl, px_z,
+                                          eta_de, eta_ie, eta_se_x1, eta_se_x0,
+                                          relu_eps, eps, task_type)
+                total_eval_loss = eval_bce + lmbd * eval_custom
+
+                if total_eval_loss < best_loss:
+                    best_loss = total_eval_loss
+                    best_model = copy.deepcopy(model)
+                    counter = 0
+                else:
+                    counter += 1
+
+            if verbose and (epoch + 1) % 50 == 0:
+                print(f"Epoch {epoch+1}, Loss: {total_eval_loss.item():.4f}")
+
+            if counter >= patience:
+                break
+
+        if best_loss < best_global_loss:
+            best_global_loss = best_loss
+            best_model_global = best_model
+
+        if restarts == max_restarts or counter < patience:
+            break
+        restarts += 1
+
+    return best_model_global
