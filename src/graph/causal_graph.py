@@ -1,6 +1,7 @@
 import itertools
 import numpy as np
 from graphviz import Source
+from collections import deque
 
 # Modified; originally from NCM Counterfactuals
 class CausalGraph:
@@ -33,8 +34,8 @@ class CausalGraph:
 
         self.assignments = {} # name of each node
 
-        # self.cc = self._c_components()
-        # self.v2cc = {v: next(c for c in self.cc if v in c) for v in self.v} # maps v to the associated c component
+        self.cc = self._c_components()
+        self.v2cc = {v: next(c for c in self.cc if v in c) for v in self.v} # maps v to the associated c component
         
         self.c2 = self._maximal_cliques()
         self.v2c2 = {v: [c for c in self.c2 if v in c] for v in self.v}
@@ -73,6 +74,20 @@ class CausalGraph:
             if marks[v] == 0:
                 visit(v)
         self.v = L[::-1]
+
+    def _c_components(self):
+        pool = set(self.v)
+        cc = []
+        while pool:
+            cc.append({pool.pop()})
+            while True:
+                added = {k2 for k in cc[-1] for k2 in self.ne[k]}
+                delta = added - cc[-1]
+                cc[-1].update(delta)
+                pool.difference_update(delta)
+                if not delta:
+                    break
+        return [tuple(sorted(c, key=self.v2i.get)) for c in cc]
 
     def _maximal_cliques(self):
         """
@@ -116,6 +131,45 @@ class CausalGraph:
             x.add(v)
 
         return c2
+    
+    def ancestors(self, C):
+        """
+        Returns the ancestors of set C.
+        """
+        if len(C)==0: return None
+        assert C.issubset(self.set_v)
+
+        frontier = [c for c in C]
+        an = {c for c in C}
+        while len(frontier) > 0:
+            cur_v = frontier.pop(0)
+            for par_v in self.pa[cur_v]:
+                if par_v not in an:
+                    an.add(par_v)
+                    frontier.append(par_v)
+
+        return an
+    
+    def grandkids(self, C):
+        """
+        Returns the... reverse-ancestors of set C?
+        """
+        if len(C)==0: return None
+        assert C.issubset(self.set_v)
+
+        frontier = [c for c in C]
+        ch = {c for c in C}
+        while len(frontier) > 0:
+            cur_v = frontier.pop(0)
+            for ch_v in self.ch[cur_v]:
+                if ch_v not in ch:
+                    ch.add(ch_v)
+                    frontier.append(ch_v)
+
+        return ch
+    
+    def convert_set_to_sorted(self, C):
+        return [v for v in self.v if v in C]
 
     def plot(self, scale=1):
         n = len(self.v)
@@ -151,3 +205,32 @@ class CausalGraph:
             dot_str += f'  {a} -> {b} {arrow_type};\n'
 
         return dot_str + "}"
+    
+def graph_search(cg, v1, v2=None, edge_type="direct"):
+    """
+    Uses BFS to check for a path between v1 and v2 in cg. If v2 is None, returns all reachable nodes.
+    """
+    assert edge_type in ["direct", "bidirect"]
+    assert v1 in cg.set_v
+    assert v2 in cg.set_v or v2 is None
+
+    q = deque([v1])
+    seen = {v1}
+    while len(q) > 0:
+        cur = q.popleft()
+        if edge_type == "direct":
+            cur_ne = cg.ch[cur]
+        else:
+            cur_ne = cg.ne[cur]
+
+        for ne in cur_ne:
+            if ne not in seen:
+                if v2 is not None and ne == v2:
+                    return True
+                seen.add(ne)
+                q.append(ne)
+
+    if v2 is None:
+        return seen
+
+    return False

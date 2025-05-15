@@ -134,7 +134,7 @@ def ett(model, var, val, treatment_var, treatment_vals, verbose=True):
     ev, neq_ev = get_evidence(treatment_var, treatment_vals.get('actual',None), treatment_vals.get('whatif',None), evidence={}, neq_evidence={})
     ett = _probability(model, var, val, intervention=dox, evidence=ev, neq_evidence=neq_ev)
     if verbose:
-        interv_str = f'actually {treatment_vals['actual']}' if treatment_vals.get('actual',None) else f'not actually {treatment_vals['whatif']}'
+        interv_str = f'actually {treatment_vals['actual']}' if (treatment_vals.get('actual',None) is not None) else f'not actually {treatment_vals['whatif']}'
         print(f'{ett:.4f}: probability that {var}={val} if we had intervened to make {treatment_var}={treatment_vals['whatif']}, given that {treatment_var} was {interv_str}.')
     return ett
     
@@ -152,8 +152,8 @@ def pnps(model, var, vals, treatment_var, treatment_vals, verbose=True):
     pnps = _probability(model, var, yval, intervention={treatment_var:xval}, evidence=ev, neq_evidence=neq_ev, u=U)
 
     if verbose:
-        interv_strx = f'{treatment_var} was actually {treatment_vals['actual']}' if treatment_vals.get('actual',None) else f'{treatment_var} was not actually {treatment_vals['whatif']}'
-        interv_stry = f'{var} was actually {vals['actual']}' if vals.get('actual',None) else f'{var} was not actually {vals['whatif']}'
+        interv_strx = f'{treatment_var} was actually {treatment_vals['actual']}' if (treatment_vals.get('actual',None)is not None) else f'{treatment_var} was not actually {treatment_vals['whatif']}'
+        interv_stry = f'{var} was actually {vals['actual']}' if (vals.get('actual',None) is not None) else f'{var} was not actually {vals['whatif']}'
         print(f'{pnps:.4f}: probability that {var}={vals['whatif']} if we had intervened to make {treatment_var}={treatment_vals['whatif']}, given that {interv_stry} and {interv_strx}.')
 
     return pnps

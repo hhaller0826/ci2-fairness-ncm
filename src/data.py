@@ -13,7 +13,7 @@ class ProcessedData:
         self._assignments = assignments
         self.columns = self._get_columns(assignments)
         self.categorical_vars = categorical_vars
-        self.discrete_vars = set(discrete_vars).intersection(set(categorical_vars))
+        self.discrete_vars = discrete_vars + categorical_vars
         self.batch_size = batch_size
 
         self.train_df, self.test_df = self._get_train_test_split(df, test_size)
@@ -55,7 +55,7 @@ class ProcessedData:
                 maxval = abbr_df[feat].max()
                 minval = abbr_df[feat].min()
                 
-            if feat in self.categorical_vars:
+            if feat in self.discrete_vars:
                 self.scale[feat] = (lambda x, maxval=maxval, minval=minval: T.round((x*(maxval-minval)) + minval))
             else:
                 self.scale[feat] = (lambda x, maxval=maxval, minval=minval: (x*(maxval-minval)) + minval)

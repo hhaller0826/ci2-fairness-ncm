@@ -1,9 +1,14 @@
 from collections.abc import Iterable
 
+
+def is_nonstring_iterable(obj):
+    return isinstance(obj, Iterable) and not isinstance(obj, (str, bytes))
+
+
 """Modified Kevin"""
 class CTFTerm:
     def __init__(self, vars, do_vals: dict={}):
-        self.vars = set(*vars)
+        self.vars = set([vars]) if type(vars)==str else set(vars)
         self.do_vals = do_vals
 
     def __str__(self):

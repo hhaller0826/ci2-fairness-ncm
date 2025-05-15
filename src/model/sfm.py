@@ -1,36 +1,35 @@
-from collections.abc import Iterable
 import torch as T
-import itertools
+import torch.nn as nn
+import numpy as np
 
 from src.model.scm import SCM
+from src.model.ncm.mlp import *
+from src.data import ProcessedData
+
+from src.model.ncm.mlp import TwoLayerArchitecture
 
 class SFM(SCM):
-    def __init__(self, model: SCM, projection, data=None):
-        self.v_size = {k:len(data.assignments[k]) for k in data.assignments} if getattr(data, 'assignments', None) is not None else getattr(model, 'v_size')
-        # TODO: check valid projection
-        # WILL need graph to do that
-        # TODO: translate convert_evaluation function
-        V, f = project_to_sfm(model, projection, self.v_size)
-        super().__init__(v=V, f=f, pu=model.pu)
+    def __init__(self, assignments, f, pu, scale, v_size={}, default_v_size=1, og_projection=None):
+        self.assignments = assignments
+        
+        super().__init__(v=list(assignments.keys()), f=f, pu=pu)
 
         self.X = 'X'
         self.Y = 'Y'
         self.Z = 'Z' if 'Z' in self.v else None 
         self.W = 'W' if 'W' in self.v else None 
+        self.Yhat = None
 
-        self.og_model = model
-        self.assignments = {k: list(itertools.chain.from_iterable([data.assignments[v] for v in projection[k]])) for k in projection}
-        self.projection = projection
-
-        self.scale = data.get_assigned_scale(self.assignments)
+        self.scale = scale
+        self.og_projection = og_projection
+        self.v_size = {k: v_size.get(k, default_v_size) for k in self.v}
     
     def convert_evaluation(self, samples):
-        # return super().convert_evaluation(samples)
-        # return self.og_model.convert_evaluation(samples)
         ret = {}
         for k in samples:
             x = samples[k]
-            ret[k] = T.tensor([[self.scale[k][i](x[j][i]).item() for i in range(len(x[0]))] for j in range(len(x))])
+            scale_var = k if k != self.Yhat else self.Y
+            ret[k] = T.tensor([[self.scale[scale_var][i](x[j][i]).item() for i in range(len(x[0]))] for j in range(len(x))])
         return ret
     
     def print_projection(self):
@@ -39,66 +38,34 @@ class SFM(SCM):
         print(f'Mediators:           {self.assignments.get('W', None)}')
         print(f'Outcome:             {self.assignments['Y']}')
 
-def process_projection(projection):
-    X = projection['X']
-    Z = [*projection.get('Z',[])]
-    W = [*projection.get('W',[])]
-    Y = projection['Y']
-    return X, Z, W, Y
+    def add_predictor(self, prediction_model):
+        self.Yhat = 'fair_predictions'
 
-# Confirm that this is the projection you intended:
-def project_to_sfm(model: SCM, projection, v_sizes):
-    X, Z, W, Y = process_projection(projection)
-
-    V = ['X']
-    f = {
-        'X': model.f[X]
-    }
-
-    if len(Z)>0:
-        def fz(v, u, X_proj, Z_proj, model):
-            temp_v = {}
-            temp_v[X_proj] = v['X']
-            for z in Z_proj:
-                temp_v[z] = model.f[z](temp_v,u)
-            return T.cat([temp_v[z] for z in Z_proj], dim=1)
-        
-        V.append('Z')
-        f['Z'] = (lambda v, u, X=X, Z=Z, model=model: fz(v, u, X, Z, model))
-
-    if len(W)>0:
-        def fw(v, u, X_proj, Z_proj, W_proj, model, v_sizes):
-            temp_v = {}
-            temp_v[X_proj] = v['X']
-            i=0
-            for z in Z_proj:
-                z_size = v_sizes[z]
-                temp_v[z] = v['Z'][:, i:i+z_size]
-                i+=z_size
+        if type(prediction_model)==TwoLayerArchitecture:
+            def fyhat(v, u=None, model=None):
+                x_data = v.get('X', T.tensor([]))
+                z_data = v.get('Z', T.tensor([]))
+                w_data = v.get('W', T.tensor([]))
+                fts_eval_t = T.hstack((x_data,z_data,w_data))
+                return model(fts_eval_t)
             
-            for w in W_proj:
-                temp_v[w] = model.f[w](temp_v,u)
-            return T.cat([temp_v[w] for w in W_proj], dim=1)
-        
-        V.append('W')
-        f['W'] = (lambda v, u, X=X, Z=Z, W=W, model=model, v_sizes=v_sizes: fw(v, u, X, Z, W, model, v_sizes))
+            self.v.append(self.Yhat)
+            self.f[self.Yhat] = (lambda v, u, model=prediction_model: fyhat(v, u, model))
 
-    def fy(v, u, X_proj, Z_proj, W_proj, Y_proj, model, v_sizes):
-        temp_v = {}
-        temp_v[X_proj] = v['X']
-        i=0
-        for z in Z_proj:
-            z_size = v_sizes[z]
-            temp_v[z] = v['Z'][:, i:i+z_size]
-            i+=z_size
-        i=0
-        for w in W_proj:
-            w_size = v_sizes[w]
-            temp_v[w] = v['W'][:, i:i+w_size]
-            i+=w_size
-        return model.f[Y_proj](temp_v,u)
-    
-    V.append('Y')
-    f['Y'] = (lambda v, u, X=X, Z=Z, W=W, Y=Y, model=model, v_sizes=v_sizes: fy(v, u, X, Z, W, Y, model, v_sizes))
+        else: 
+            self.v.append(self.Yhat)
+            self.f[self.Yhat] = (lambda v, u, model=prediction_model: prediction_model(v, u))
 
-    return V, f
+    def predict(self, data=None, n=100):
+        if self.Yhat is None:
+            raise ValueError('Predictor has not been initialized on this model.')
+        if data is not None:
+            if 'X' not in data:
+                new_data = {
+                    'X':data[self.assignments['X']],
+                    'Z':data[self.assignments.get('Z',[])],
+                    'W':data[self.assignments.get('W',[])]
+                }
+            else: new_data = data
+            return self.f[self.Yhat](new_data)
+        return self.sample(n=n)[self.Yhat]

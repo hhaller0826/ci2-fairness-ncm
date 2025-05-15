@@ -1,10 +1,14 @@
 import warnings 
 import pandas as pd
+import itertools
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 
 from src.model.scm import SCM
 from src.model.ncm.feedforward_ncm import FF_NCM
+from src.model.ncm.mlp import *
+from src.model.sfm import SFM
+
 from src.model.distribution import *
 from src.graph.causal_graph import CausalGraph
 from src.data import ProcessedData
@@ -15,46 +19,10 @@ def process_data_assignments(df, assignments, graph: CausalGraph, categorical_va
     check_assignments(assignments=assignments, data=df, graph=graph)
     return ProcessedData(df, assignments, categorical_vars, discrete_vars, test_size)
 
-# def process_data_assignments(df, assignments, graph: CausalGraph, categorical_vars=[], test_size=0.1):
-#     columns = check_assignments(assignments=assignments, data=df, graph=graph)
-    
-#     abbr_df = pd.DataFrame(df, columns=list(columns))
-#     print_df = pd.DataFrame()
-
-#     dat_train, dat_test = train_test_split(abbr_df, test_size=test_size, random_state=42)
-#     scale = {}
-
-#     for feat in columns:
-#         print_df[feat+'_orig'] = dat_train[feat]
-#         encoder = LabelEncoder()
-#         if feat in categorical_vars:
-#             dat_train[feat] = encoder.fit_transform(dat_train[feat])
-#             dat_test[feat] = encoder.fit_transform(dat_test[feat])
-
-#             maxval = abbr_df[feat].nunique()-1
-#             minval = 0
-#         else:
-#             maxval = abbr_df[feat].max()
-#             minval = abbr_df[feat].min()
-#         scale[feat] = (lambda x, maxval=maxval, minval=minval: (x*(maxval-minval)) + minval)
-#         # easiest to use NN with a sigmoid so we need to normalize the values between 0 and 1
-#         # TODO: currently just hoping the real max & min values are in the dataset. if this is grades but everyone got B's and C's, then my algo will never predict A or D
-#         dat_train[feat] = dat_train[feat].apply(lambda x: (x-minval)/(maxval-minval))
-#         dat_test[feat] = dat_test[feat].apply(lambda x: (x-minval)/(maxval-minval))
-
-#         print_df[feat] = dat_train[feat]
-
-#     assigned_scale = {}
-#     for v in assignments:
-#         assigned_scale[v] = [scale[assignments[v][i]] for i in range(len(assignments[v]))]
-
-#     train_dataloader = NCMDataset(dat_train, assignments).get_dataloader(batch_size=32)
-#     test_dataloader = NCMDataset(dat_test, assignments).get_dataloader(batch_size=32)
-
-#     return {'train': train_dataloader, 'test': test_dataloader, 'train-df': dat_train, 'test-df': dat_test, 'scale': assigned_scale, 'print': print_df, 'assignments': assignments}
-
-
 def check_assignments(data, assignments: dict, graph: CausalGraph):
+    """
+    Check for assigning data columns to graph nodes.
+    """
     # Check that all nodes are being assigned
     assert assignments.keys() <= graph.set_v, f'Node {assignments.keys()-graph.set_v} not in graph'
     
@@ -96,60 +64,108 @@ def get_ncm(graph, assignments={}, hyperparams=None, scale={}):
 
 def process_projection(projection):
     X = projection['X']
-    Z = [*set(projection.get('Z',[]))]
-    W = [*set(projection.get('W',[]))]
+    Z = set(projection.get('Z',{}))
+    W = set(projection.get('W',{}))
     Y = projection['Y']
     return X, Z, W, Y
 
 def check_projection(projection, cg: CausalGraph):
+    """
+    Check when projecting graph nodes to SFM
+    """
     # check attributes in projection 
     assert 'X' in projection, f'Must specify a protected attribute X.'
     assert 'Y' in projection, f'Must specify an outcome Y.'
     if 'Z' not in projection: warnings.warn(f'No confounders assigned.')
     if 'W' not in projection: warnings.warn(f'No mediators assigned.')
 
-    unassgn = projection.keys()-{'X','Y','Z','W'}
-    if len(unassgn) > 0: warnings.warn(f'{unassgn} will not be used as variables in the SFM. The following will remain unassigned: {[projection[k] for k in unassgn][0]}', UserWarning)
+    random_keys = projection.keys()-{'X','Y','Z','W'}
+    if len(random_keys) > 0: warnings.warn(f'{random_keys} will not be used as variables in the SFM. The following will remain unassigned: {[projection[k] for k in random_keys][0]}', UserWarning)
 
     X, Z, W, Y = process_projection(projection)
-    err = ''
+    projected_vars = {X, *Z, *W, Y}
+
+    # Check that every variable along a path within the SFM is assigned (ex.: W1>V>W2)
+    unassgned = cg.set_v - projected_vars
+    for unassgn in unassgned:
+        ancestor_intersection = cg.ancestors({unassgn}).intersection(projected_vars)
+        if len(ancestor_intersection)>0:
+            grandkid_intersection = cg.grandkids({unassgn}).intersection(projected_vars)
+            if len(grandkid_intersection)>0:
+                raise ValueError(f'[Path {ancestor_intersection}->{unassgn}->{grandkid_intersection}]: Please explicitly assign {unassgn} to one of the SFM variables.')
+
+    # check assignments
+    if len(projected_vars - cg.set_v)>0: raise ValueError(f'Unknown variable(s): {projected_vars.difference(cg.set_v)}')
 
     # check duplicates
-    sub_cg = [X, *Z, *W, Y]
-    if X in Z or X in W or X == Y: err += f'Duplicate value: {X}\n'
-    if Y in Z or Y in W: err += f'Duplicate value: {Y}\n'
-    if set(Z).intersection(set(W)): err += f'Duplicate value: {set(Z).intersection(set(W))}\n'
-    
-    # check directed arrows, assignments
-    if X not in cg.v: raise ValueError(f'{X} is not a known variable.\n')
-    if Y not in cg.v: raise ValueError(f'{Y} is not a known variable.\n')
-    if Y in cg.pa[X]: err += f'[Edge: {Y}->{X}] Cannot have arrow from Y to X in Standard Fairness Model.\n'
-    
-    for w in W:
-        if w not in cg.v: raise ValueError(f'{w} is not a known variable.\n')
-        if w in cg.pa[X]: err += f'[Edge: {w}->{X}] Cannot have arrow from W to X in Standard Fairness Model.\n'
+    if len(projected_vars)<len([X, *Z, *W, Y]):
+        seen = set()
+        duplicates = {x for x in [X, *Z, *W, Y] if x in seen or seen.add(x)}
+        raise ValueError('Duplicate variable assignment: {}'.format(duplicates))
 
-        if Y in cg.pa[w]: err += f'[Edge: {Y}->{w}] Cannot have arrow from Y to W in Standard Fairness Model.\n'
-
-        # Check bidirected arrows with W
-        for ne in cg.ne[w]:
-            if ne==X: err += f'[Edge: {X}<->{w}] Cannot have bidirected arrow between X and W'
-            elif ne in Z: err += f'[Edge: {ne}<->{w}] Cannot have bidirected arrow between Z and W'
-            elif ne==Y: f'[Edge: {w}<->{Y}] Cannot have bidirected arrow between W and Y'
-
-    for z in Z: 
-        if z not in cg.v: raise ValueError(f'{z} is not a known variable.\n')
-        if z in cg.pa[X]: err += f'[Edge: {z}->{X}] Cannot have arrow from Z to X in Standard Fairness Model.\n'
-
-        for paz in cg.pa[z]:
-            if paz==Y: err += f'[Edge: {Y}->{z}] Cannot have arrow from Y to Z in Standard Fairness Model.\n'
-            if paz in W: err += f'[Edge: {paz}->{z}] Cannot have arrow from W to Z in Standard Fairness Model.\n'
-            if paz==X: err += f'[Edge: {X}->{z}] Cannot have arrow from X to Z in Standard Fairness Model.\n'
-
+    err = ''
     # check bidirected arrows
-    for ne in cg.ne[Y]:
-        if ne==X: err += f'[Edge: {X}<->{Y}] Cannot have bidirected arrow between X and Y'
-        elif ne in Z: err += f'[Edge: {ne}<->{Y}] Cannot have bidirected arrow between Z and Y'
-
+    xz_cc = set([*(cg.v2cc[xz] for xz in {X,*Z})])
+    w_cc = set([*(cg.v2cc[w] for w in W)])
+    y_cc = cg.v2cc[Y]
+    if len(xz_cc.intersection(w_cc))>0: err += f'Cannot have bidirected arrow path between X or Z and W'
+    if len(xz_cc.intersection(y_cc))>0: err += f'Cannot have bidirected arrow path between X or Z and Y'
+    if len(w_cc.intersection(y_cc))>0: err += f'Cannot have bidirected arrow path between W and Y'
     
+    # check directed arrows
+    x_ancestors = cg.ancestors({X})
+    z_ancestors = cg.ancestors(Z)
+    w_ancestors = cg.ancestors(W)
+    
+    if Y in {*x_ancestors, *z_ancestors, *w_ancestors}: err += f'Cannot have path from Y to X, Z, or W in Standard Fairness Model.\n'
+    if len(W.intersection({*x_ancestors, *z_ancestors}))>0: err += f'Cannot have path from W to X or Z in Standard Fairness Model.\n'
+    if len(Z.intersection(x_ancestors))>0: err += f'Cannot have path from Z to X in Standard Fairness Model.\n'
+    if X in z_ancestors: err += f'Cannot have path from X to Z in Standard Fairness Model.\n'
+
     if len(err) > 0: raise ValueError(err)
+    return X, Z, W, Y
+
+def index_decomposition(var_set, v_sizes):
+    indices = {}
+    i=0
+    for v in var_set:
+        indices[v] = (i,i+v_sizes[v])
+    return indices
+
+def project_to_sfm(model: SCM, projection, data: ProcessedData, cg: CausalGraph, assignments=None):
+    X, Z, W, Y = check_projection(projection, cg)
+    projected_vars = {X, *Z, *W, Y}
+    var_assignments = getattr(data, 'assignments', assignments)
+    if var_assignments is None: raise ValueError('Original graph node assignments required for SFM projection.')
+
+    v_size = {k:len(var_assignments[k]) for k in var_assignments}
+    f = {}
+
+    # assume f's are all MLPs for right now
+    x_ancestors = cg.ancestors({X})
+    f['X'] = VerticalStackMLP({an:cg.pa[an] for an in x_ancestors}, {an:model.f[an] for an in x_ancestors}, {X}, v_size) if len(x_ancestors)>1 else model.f[X]
+
+    unproject_map = {'X':{X:(0,v_size[X])}}
+    if len(Z)>0:
+        z_ancestors = cg.ancestors(Z)
+        f['Z'] = VerticalStackMLP({an:cg.pa[an] for an in z_ancestors}, {an:model.f[an] for an in z_ancestors}, cg.convert_set_to_sorted(Z), v_size)
+        unproject_map['Z'] = index_decomposition(Z, v_size)
+    
+    if len(W)>0:
+        w_parents = {v for w in W for v in cg.pa[w]} - projected_vars
+        pa_w_ancestors = cg.ancestors(w_parents)
+        fpa_w = VerticalStackMLP({an:cg.pa[an] for an in pa_w_ancestors}, {an:model.f[an] for an in pa_w_ancestors}, cg.convert_set_to_sorted(w_parents), v_size, keep_separated=True) if len(w_parents)>0 else None
+        f['W'] = HorizontalStackMLP({w:model.f[w] for w in W}, W, unproject_map=unproject_map, pa_mlps=fpa_w)
+        unproject_map['W'] = index_decomposition(W, v_size)
+
+    y_parents = {*cg.pa[Y]} - projected_vars
+    pa_y_ancestors = cg.ancestors(y_parents)
+    fpa_y = VerticalStackMLP({an:cg.pa[an] for an in pa_y_ancestors}, {an:model.f[an] for an in pa_y_ancestors}, cg.convert_set_to_sorted(y_parents), v_size, keep_separated=True) if len(y_parents)>0 else None
+    f['Y'] = HorizontalStackMLP({Y:model.f[Y]}, {Y}, unproject_map=unproject_map, pa_mlps=fpa_y)
+
+
+    data_assignments = {k: list(itertools.chain.from_iterable([var_assignments[v] for v in projection[k]])) for k in projection}
+    scale = data.get_assigned_scale(data_assignments)
+
+    # TODO: Improve SFM code
+    return SFM(data_assignments, f=f, pu=model.pu, scale=scale, og_projection=projection, v_size={k: sum(v_size[v] for v in projection[k]) for k in projection})

@@ -6,23 +6,37 @@ import torch.nn.functional as F
 import copy
 import numpy as np
 from sklearn.linear_model import LogisticRegression
+from src.model.ncm.mlp import TwoLayerArchitecture
+from src.fairness.task1 import *
+
+
+def fair_predictions(data, sfm, x0, x1, bn={}, lmdb_seq=None, verbose=False):
+    x_col = sfm.assignments['X']
+    z_cols = sfm.assignments['Z']
+    w_cols = sfm.assignments['W']
+    y_col = sfm.assignments['Y']
+
+    nde = ('de' not in bn)
+    nie = ('ie' not in bn)
+    nse = ('se' not in bn)
+
+    y_fcb = fairness_cookbook(sfm, 'X', 'Z', 'W', 'Y', x0=x0, x1=x1, effect_type='nat', get_probs=True)
+
+    eta_de = y_fcb.get('DEx0x1') # fairness cookbook on regular Y to get NDE_x0x1
+    eta_ie = y_fcb.get('IEx1x0') # fairness cookbook on regular Y to get NIE_x1x0
+    eta_se_x1 = y_fcb.get('exp-SEx1') # fairness cookbook on regular Y to get exp-SE_x1
+    eta_se_x0 = y_fcb.get('exp-SEx0') # TODO: fairness cookbook on regular Y to get exp-SE_x0
+
+    lmbd = 10
+    model = train_w_es(data.train_df, data.test_df, x_col, z_cols, w_cols, y_col, lmbd=lmbd, verbose=verbose,
+                       nde=nde, nie=nie, nse=nse, eta_de=eta_de, eta_ie=eta_ie, eta_se_x0=eta_se_x0, eta_se_x1=eta_se_x1)
+    
+    sfm.add_predictor(model)
+    return model
+
+
 
 # DRAGO 
-class TwoLayerArchitecture(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
-        super(TwoLayerArchitecture, self).__init__()
-        # Define the architecture here.
-        self.layer1 = nn.Linear(input_size, hidden_size)
-        self.layer2 = nn.Linear(hidden_size, hidden_size)
-        self.output_layer = nn.Linear(hidden_size, output_size)
-    
-    def forward(self, x):
-        # Define the forward pass here.
-        x = F.relu(self.layer1(x))
-        x = F.relu(self.layer2(x))
-        x = self.output_layer(x)
-        return x
-
 # Custom loss for direct effect (!)
 def causal_loss(pred, pred0, pred1, X, Z, W, Y, px_z, eta_de, eta_ie, eta_se_x1, 
                 eta_se_x0, relu_eps, eps, task_type):
@@ -249,11 +263,6 @@ def train_w_es(train_data, eval_data, x_col, z_cols, w_cols, y_col, lmbd, lr=0.0
 
         restarts += 1
 
-    # best_model_global.eval()
-    # with torch.no_grad():
-    #     test_preds = torch.sigmoid(best_model_global(fts_test_t))
-    # 
-    # return test_preds.numpy()
     return best_model_global
 
 def pred_nn_proba(model, test_data, task_type):
