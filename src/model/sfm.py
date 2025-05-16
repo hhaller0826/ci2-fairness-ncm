@@ -39,6 +39,7 @@ class SFM(SCM):
         print(f'Outcome:             {self.assignments['Y']}')
 
     def add_predictor(self, prediction_model):
+        self.v.remove(self.Yhat)
         self.Yhat = 'fair_predictions'
 
         if type(prediction_model)==TwoLayerArchitecture:

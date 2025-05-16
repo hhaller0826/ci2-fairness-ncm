@@ -122,6 +122,17 @@ def check_projection(projection, cg: CausalGraph):
     if len(Z.intersection(x_ancestors))>0: err += f'Cannot have path from Z to X in Standard Fairness Model.\n'
     if X in z_ancestors: err += f'Cannot have path from X to Z in Standard Fairness Model.\n'
 
+    # check newly-created bidirected arrows (common ancestors)
+    y_parents_outside = {*cg.pa[Y]}-projected_vars
+
+    # y_ancestors_outside = cg.ancestors({Y})-projected_vars
+    y_outside_confounders = cg.ancestors(y_parents_outside).intersection({*x_ancestors,*z_ancestors,*w_ancestors})
+    if len(y_outside_confounders)>0: err += f'Unassigned node(s) {y_outside_confounders} point to Y and other variables in your projection. This is the same as having a bidirected arrow path.'
+    
+    w_parents = {v for w in W for v in cg.pa[w]} - projected_vars
+    w_outside_confounders = cg.ancestors(w_parents).intersection({*x_ancestors,*z_ancestors})
+    if len(w_outside_confounders)>0: err += f'Unassigned node(s) {w_outside_confounders} point to W and either X or Z variables in your projection. This is the same as having a bidirected arrow path.'
+
     if len(err) > 0: raise ValueError(err)
     return X, Z, W, Y
 

@@ -136,7 +136,7 @@ class CausalGraph:
         """
         Returns the ancestors of set C.
         """
-        if len(C)==0: return None
+        if C is None or len(C)==0: return set()
         assert C.issubset(self.set_v)
 
         frontier = [c for c in C]

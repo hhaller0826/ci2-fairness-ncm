@@ -129,7 +129,7 @@ def total_effect(model, var, val, attr, aval1, aval0, evidence={}, verbose=True)
     return te
 
 def ett(model, var, val, treatment_var, treatment_vals, verbose=True):
-    assert 'whatif' in treatment_vals
+    assert 'whatif' in treatment_vals, f'Input treatment_vals must have an explicitly defined whatif value.'
     dox = {treatment_var: treatment_vals['whatif']}
     ev, neq_ev = get_evidence(treatment_var, treatment_vals.get('actual',None), treatment_vals.get('whatif',None), evidence={}, neq_evidence={})
     ett = _probability(model, var, val, intervention=dox, evidence=ev, neq_evidence=neq_ev)
@@ -143,6 +143,7 @@ def pnps(model, var, vals, treatment_var, treatment_vals, verbose=True):
     Return PNPSx,x' = P(Y_x = y | Y=y', X=x')
     """
     U = model.pu.sample(10000)
+    assert 'whatif' in treatment_vals and 'whatif' in vals, f'Inputs vals and treatment_vals must have explicitly defined whatif values.'
     yval = vals['whatif']
     xval = treatment_vals['whatif']
 
