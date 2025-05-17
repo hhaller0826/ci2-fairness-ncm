@@ -182,3 +182,59 @@ class TwoLayerArchitecture(nn.Module):
         x = F.relu(self.layer2(x))
         x = self.output_layer(x)
         return x
+    
+import torch as T
+import torch.nn as nn
+
+
+class SimplePerceptron(nn.Module):
+    def __init__(self, pa_size, u_size, o_size, use_sigmoid=True):
+        super().__init__()
+        self.pa = sorted(pa_size)
+        self.set_pa = set(self.pa)
+        self.u = sorted(u_size)
+        self.pa_size = pa_size
+        self.u_size = u_size
+        self.o_size = o_size
+
+        self.i_size = sum(self.pa_size[k] for k in self.pa_size) + sum(self.u_size[k] for k in self.u_size)
+
+        self.linear = nn.Linear(self.i_size, self.o_size)
+        self.use_sigmoid = use_sigmoid
+        self.device_param = nn.Parameter(T.empty(0))
+
+        self.linear.apply(self.init_weights)
+
+    def init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain('linear'))
+
+    def forward(self, pa, u, inp_pa=None, include_inp=False):
+        if len(u.keys()) == 0:
+            inp = T.cat([pa[k] for k in self.pa], dim=1) if inp_pa is None else inp_pa
+        elif len(pa.keys()) == 0 or len(set(pa.keys()).intersection(self.set_pa)) == 0:
+            inp = T.cat([u[k] for k in self.u], dim=1)
+        else:
+            inp_u = T.cat([u[k] for k in self.u], dim=1)
+            inp_pa = T.cat([pa[k] for k in self.pa], dim=1) if inp_pa is None else inp_pa
+            inp = T.cat((inp_pa, inp_u), dim=1)
+
+        out = self.linear(inp)
+        if self.use_sigmoid:
+            out = T.sigmoid(out)
+
+        return (out, inp) if include_inp else out
+
+
+if __name__ == '__main__':
+    s = SimplePerceptron(dict(v1=2, v2=1), dict(u1=1, u2=2), 3)
+    print(s)
+    pa = {
+        'v1': T.tensor([[1, 2], [3, 4.]]),
+        'v2': T.tensor([[5], [6.]])
+    }
+    u = {
+        'u1': T.tensor([[7.], [8]]),
+        'u2': T.tensor([[9, 10], [11, 12.]])
+    }
+    print(s(pa, u))
