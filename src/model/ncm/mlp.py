@@ -183,9 +183,6 @@ class TwoLayerArchitecture(nn.Module):
         x = self.output_layer(x)
         return x
     
-import torch as T
-import torch.nn as nn
-
 
 class SimplePerceptron(nn.Module):
     def __init__(self, pa_size, u_size, o_size, use_sigmoid=True):

@@ -117,10 +117,10 @@ def check_projection(projection, cg: CausalGraph):
     z_ancestors = cg.ancestors(Z)
     w_ancestors = cg.ancestors(W)
     
-    if Y in {*x_ancestors, *z_ancestors, *w_ancestors}: err += f'Cannot have path from Y to X, Z, or W in Standard Fairness Model.\n'
-    if len(W.intersection({*x_ancestors, *z_ancestors}))>0: err += f'Cannot have path from W to X or Z in Standard Fairness Model.\n'
-    if len(Z.intersection(x_ancestors))>0: err += f'Cannot have path from Z to X in Standard Fairness Model.\n'
-    if X in z_ancestors: err += f'Cannot have path from X to Z in Standard Fairness Model.\n'
+    if Y in {*x_ancestors, *z_ancestors, *w_ancestors}: err += f'Cannot have path from Y to X, Z, or W in the Standard Fairness Model.\n'
+    if len(W.intersection({*x_ancestors, *z_ancestors}))>0: err += f'Cannot have path from W to X or Z in the Standard Fairness Model.\n'
+    if len(Z.intersection(x_ancestors))>0: err += f'Cannot have path from Z to X in the Standard Fairness Model.\n'
+    if X in z_ancestors: err += f'Cannot have path from X to Z in the Standard Fairness Model.\n'
 
     # check newly-created bidirected arrows (common ancestors)
     y_parents_outside = {*cg.pa[Y]}-projected_vars
