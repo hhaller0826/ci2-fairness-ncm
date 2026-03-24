@@ -109,7 +109,7 @@ def total_variation(model, var, val, attr, aval1, aval0=None, verbose=True):
     pY_condx0 = _probability(model, var, val, evidence=ev, neq_evidence=neq_ev, u=U)
 
     tv = pY_condx1 - pY_condx0
-    if verbose: print(f'TV({var}={val}) = {pY_condx1:.4f} - {pY_condx0:.4f} = {tv:.4f}')
+    if verbose: print(f"TV({var}={val}) = {pY_condx1:.4f} - {pY_condx0:.4f} = {tv:.4f}")
         
     return tv
 
@@ -123,19 +123,19 @@ def total_effect(model, var, val, attr, aval1, aval0, evidence={}, verbose=True)
 
     te = pY_dox1 - pY_dox0
     if verbose:
-        z = ','.join([f'{k}={evidence[k]}' for k in evidence])
-        print(f'TE({var}={val}{' | '+z if z else ''}) = {pY_dox1:.4f} - {pY_dox0:.4f} = {te:.4f}')
+        z = ','.join([f"{k}={evidence[k]}" for k in evidence])
+        print(f"TE({var}={val}{' | '+z if z else ''}) = {pY_dox1:.4f} - {pY_dox0:.4f} = {te:.4f}")
 
     return te
 
 def ett(model, var, val, treatment_var, treatment_vals, verbose=True):
-    assert 'whatif' in treatment_vals, f'Input treatment_vals must have an explicitly defined whatif value.'
+    assert 'whatif' in treatment_vals, f"Input treatment_vals must have an explicitly defined whatif value."
     dox = {treatment_var: treatment_vals['whatif']}
     ev, neq_ev = get_evidence(treatment_var, treatment_vals.get('actual',None), treatment_vals.get('whatif',None), evidence={}, neq_evidence={})
     ett = _probability(model, var, val, intervention=dox, evidence=ev, neq_evidence=neq_ev)
     if verbose:
-        interv_str = f'actually {treatment_vals['actual']}' if (treatment_vals.get('actual',None) is not None) else f'not actually {treatment_vals['whatif']}'
-        print(f'{ett:.4f}: probability that {var}={val} if we had intervened to make {treatment_var}={treatment_vals['whatif']}, given that {treatment_var} was {interv_str}.')
+        interv_str = f"actually {treatment_vals['actual']}" if (treatment_vals.get('actual',None) is not None) else f"not actually {treatment_vals['whatif']}"
+        print(f"{ett:.4f}: probability that {var}={val} if we had intervened to make {treatment_var}={treatment_vals['whatif']}, given that {treatment_var} was {interv_str}.")
     return ett
     
 def pnps(model, var, vals, treatment_var, treatment_vals, verbose=True):
@@ -143,7 +143,7 @@ def pnps(model, var, vals, treatment_var, treatment_vals, verbose=True):
     Return PNPSx,x' = P(Y_x = y | Y=y', X=x')
     """
     U = model.pu.sample(10000)
-    assert 'whatif' in treatment_vals and 'whatif' in vals, f'Inputs vals and treatment_vals must have explicitly defined whatif values.'
+    assert 'whatif' in treatment_vals and 'whatif' in vals, f"Inputs vals and treatment_vals must have explicitly defined whatif values."
     yval = vals['whatif']
     xval = treatment_vals['whatif']
 
@@ -153,8 +153,8 @@ def pnps(model, var, vals, treatment_var, treatment_vals, verbose=True):
     pnps = _probability(model, var, yval, intervention={treatment_var:xval}, evidence=ev, neq_evidence=neq_ev, u=U)
 
     if verbose:
-        interv_strx = f'{treatment_var} was actually {treatment_vals['actual']}' if (treatment_vals.get('actual',None)is not None) else f'{treatment_var} was not actually {treatment_vals['whatif']}'
-        interv_stry = f'{var} was actually {vals['actual']}' if (vals.get('actual',None) is not None) else f'{var} was not actually {vals['whatif']}'
-        print(f'{pnps:.4f}: probability that {var}={vals['whatif']} if we had intervened to make {treatment_var}={treatment_vals['whatif']}, given that {interv_stry} and {interv_strx}.')
+        interv_strx = f"{treatment_var} was actually {treatment_vals['actual']}" if (treatment_vals.get('actual',None)is not None) else f"{treatment_var} was not actually {treatment_vals['whatif']}"
+        interv_stry = f"{var} was actually {vals['actual']}" if (vals.get('actual',None) is not None) else f"{var} was not actually {vals['whatif']}"
+        print(f"{pnps:.4f}: probability that {var}={vals['whatif']} if we had intervened to make {treatment_var}={treatment_vals['whatif']}, given that {interv_stry} and {interv_strx}.")
 
     return pnps

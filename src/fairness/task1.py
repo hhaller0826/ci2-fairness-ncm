@@ -47,17 +47,17 @@ class FairnessCookbook:
         pY_dox1 = _prob(self._sampleY_dox1(x)[Y], y_val)
 
         te = pY_dox1-pY_dox0
-        print(f'xTE_x0x1(Y={y_val} | X={x[self.sfm.X]}) = {te:.4f}')
+        print(f"xTE_x0x1(Y={y_val} | X={x[self.sfm.X]}) = {te:.4f}")
 
         xde_x0x1 = pY_dox1wx0 - pY_dox0
         xde_x1x0 = pY_dox0wx1 - pY_dox1
         xde_sym = 0.5 * (xde_x0x1 - xde_x1x0)
-        print(f'xDE^sym(Y={y_val} | X={x[self.sfm.X]}) = {xde_sym:.4f}')
+        print(f"xDE^sym(Y={y_val} | X={x[self.sfm.X]}) = {xde_sym:.4f}")
 
         xie_x0x1 = pY_dox0wx1 - pY_dox0
         xie_x1x0 = pY_dox1wx0 - pY_dox1
         xie_sym = 0.5 * (xie_x0x1 - xie_x1x0)
-        print(f'xIE^sym(Y={y_val} | X={x[self.sfm.X]}) = {xie_sym:.4f}')
+        print(f"xIE^sym(Y={y_val} | X={x[self.sfm.X]}) = {xie_sym:.4f}")
         return {'TE':te, 'DE':xde_sym, 'DEx0x1':xde_x0x1, 'DEx1x0':xde_x1x0, 'IE':xie_sym, 'IEx0x1':xie_x0x1, 'IEx1x0':xie_x1x0}
 
     def x_se(self, y_val=1, x=None, x_=None):
@@ -67,14 +67,14 @@ class FairnessCookbook:
         pY_dox_condx_ = _prob(sample_ctf(self.sfm, CTFTerm(Y, x), x_, u=self.u)[Y], y_val)
         pY_dox_condx = _prob(sample_ctf(self.sfm, CTFTerm(Y, x), x, u=self.u)[Y], y_val)
         se = pY_dox_condx_ - pY_dox_condx
-        print(f'xSE_{x},{x_}(Y={y_val}) = {se:.4f}')
+        print(f"xSE_{x},{x_}(Y={y_val}) = {se:.4f}")
         return se
 
     def x_specific_effects(self, y_val=1):
         sym = self.x_specific_TE_DE_IE(y_val, self.x0)
         se = self.x_se(y_val, self.x1, self.x0)
         tv = sym['TE'] - se 
-        print(f'TV_{self.x0},{self.x1}(Y={y_val}) = {tv:.4f}')
+        print(f"TV_{self.x0},{self.x1}(Y={y_val}) = {tv:.4f}")
 
 
     def fairness_cookbook(self, bn={}):
@@ -96,8 +96,8 @@ class FairnessCookbook:
         # x-DE^sym
         de_sym, hde_sym, _, _ = diff_from_margins(de_x0x1, hde_x0x1, de_x1x0, hde_x1x0, 0.5)
         hde0 = (abs(de_sym) <= abs(hde_sym)).item()
-        print(f'xDE^sym = {de_sym:.4f}\u00B1{hde_sym:.4f}\t hypothesis "no direct effect" {'ACCEPTED' if hde0 else 'REJECTED'}')
-        print(f'\t ---> {'no ' if hde0 else ''}evidence of disperate TREATMENT.')
+        print(f"xDE^sym = {de_sym:.4f}\u00B1{hde_sym:.4f}\t hypothesis 'no direct effect' {'ACCEPTED' if hde0 else 'REJECTED'}")
+        print(f"\t ---> {'no ' if hde0 else ''}evidence of disperate TREATMENT.")
         
 
         # x-IE_{x0,x1}(y|x)
@@ -107,15 +107,15 @@ class FairnessCookbook:
         # x-IE^sym
         ie_sym, hie_sym, _, _ = diff_from_margins(ie_x0x1, hie_x0x1, ie_x1x0, hie_x1x0, 0.5)
         hie0 = (abs(ie_sym) <= abs(hie_sym)).item()
-        print(f'xIE^sym = {ie_sym:.4f}\u00B1{hie_sym:.4f}\t hypothesis "no indirect effect" {'ACCEPTED' if hie0 else 'REJECTED'}')
+        print(f"xIE^sym = {ie_sym:.4f}\u00B1{hie_sym:.4f}\t hypothesis 'no indirect effect' {'ACCEPTED' if hie0 else 'REJECTED'}")
 
         # x-SE_{x1,x0}
         mx1_condx0, hx1_condx0, _, _ = confidence_interval(self._sampleY_dox1(self.x0)[Y])
         mx1_condx1, hx1_condx1, _, _ = confidence_interval(self._sampleY_dox1(self.x1)[Y])
         se_x1x0, hse_x1x0, _, _ = diff_from_margins(mx1_condx0, hx1_condx0, mx1_condx1, hx1_condx1)
         hse0 = (abs(se_x1x0) <= abs(hse_x1x0)).item()
-        print(f'xSE_x1x0 = {se_x1x0:.4f}\u00B1{hse_x1x0:.4f}\t hypothesis "no spurious effect" {'ACCEPTED' if hse0 else 'REJECTED'}')
-        print(f'\t ---> {'no ' if hie0 and hse0 else ''}evidence of disperate IMPACT.')
+        print(f"xSE_x1x0 = {se_x1x0:.4f}\u00B1{hse_x1x0:.4f}\t hypothesis 'no spurious effect' {'ACCEPTED' if hse0 else 'REJECTED'}")
+        print(f"\t ---> {'no ' if hie0 and hse0 else ''}evidence of disperate IMPACT.")
         print()
 
 def exp_se(model, U, X, Y, x_val, y_val=1):

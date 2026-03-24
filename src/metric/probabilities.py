@@ -82,15 +82,15 @@ class ReusableProbability:
     def probability(self, val, evidence={}, intervention={}, print_str=True):
         """Prints & calculates the probability"""
         prob = self._probability(val, evidence, intervention)
-        cond = ','.join([f'{k}={evidence[k]}' for k in evidence]+[f'do({k}={intervention[k]})' for k in intervention])
-        if print_str: print(f'P({self.Y}={val}{' | '+cond if cond else ''}) = {prob:.4f}')
+        cond = ','.join([f"{k}={evidence[k]}" for k in evidence]+[f"do({k}={intervention[k]})" for k in intervention])
+        if print_str: print(f"P({self.Y}={val}{' | '+cond if cond else ''}) = {prob:.4f}")
         return prob
     
     def total_variation(self, val, verbose=True):
         py_condx1 = self._probability(val, conditions=self.x1)
         py_condx0 = self._probability(val, conditions=self.x0)
         tv = py_condx1 - py_condx0
-        if verbose: print(f'TV({self.Y}={val}) = {py_condx1:.4f} - {py_condx0:.4f} = {tv:.4f}')
+        if verbose: print(f"TV({self.Y}={val}) = {py_condx1:.4f} - {py_condx0:.4f} = {tv:.4f}")
         return tv
     
     def total_effect(self, val, x1=None, x0=None, evidence={}, verbose=True):
@@ -103,7 +103,7 @@ class ReusableProbability:
         te = py_dox1 - py_dox0
         if verbose:
             z = ','.join([f'{k}={evidence[k]}' for k in evidence])
-            print(f'TE({self.Y}={val}{' | '+z if z else ''}) = {py_dox1:.4f} - {py_dox0:.4f} = {te:.4f}')
+            print(f"TE({self.Y}={val}{' | '+z if z else ''}) = {py_dox1:.4f} - {py_dox0:.4f} = {te:.4f}")
         return te
     
     def ett(self, val, whatif_treatment=None, actual_treatment=None, verbose=True):
@@ -111,14 +111,14 @@ class ReusableProbability:
         whatif_treatment (Default=self.x0)
         """
         whatif_treatment = self.x0_val if whatif_treatment is None else whatif_treatment
-        if whatif_treatment is None: raise ValueError(f'Interventions must be explicit. Specify a whatif value or set prob.x0_val')
+        if whatif_treatment is None: raise ValueError(f"Interventions must be explicit. Specify a whatif value or set prob.x0_val")
         
         treatment = {'neq':{self.X:whatif_treatment}} if actual_treatment is None else {self.X:actual_treatment}
         ett = self._probability(val, intervention={self.X:whatif_treatment}, conditions=treatment)
 
         if verbose:
-            interv_str = f'actually {actual_treatment}' if actual_treatment else f'not actually {whatif_treatment}'
-            print(f'{ett:.4f}: probability that {self.Y}={val} if we had intervened to make {self.X}={whatif_treatment}, given that {self.X} was {interv_str}.')
+            interv_str = f"actually {actual_treatment}" if actual_treatment else f"not actually {whatif_treatment}"
+            print(f"{ett:.4f}: probability that {self.Y}={val} if we had intervened to make {self.X}={whatif_treatment}, given that {self.X} was {interv_str}.")
 
         return ett
     
@@ -135,9 +135,9 @@ class ReusableProbability:
         pnps = self._probability(whatif_outcome, intervention={self.X:whatif_treatment}, conditions=conditions)
 
         if verbose:
-            interv_strx = f'{self.X} was actually {actual_treatment}' if actual_treatment else f'{self.X} was not actually {whatif_treatment}'
-            interv_stry = f'{self.Y} was actually {actual_outcome}' if actual_outcome else f'{self.Y} was not actually {whatif_outcome}'
-            print(f'{pnps:.4f}: probability that {self.Y}={whatif_outcome} if we had intervened to make {self.X}={whatif_treatment}, given that {interv_stry} and {interv_strx}.')
+            interv_strx = f"{self.X} was actually {actual_treatment}" if actual_treatment else f"{self.X} was not actually {whatif_treatment}"
+            interv_stry = f"{self.Y} was actually {actual_outcome}" if actual_outcome else f"{self.Y} was not actually {whatif_outcome}"
+            print(f"{pnps:.4f}: probability that {self.Y}={whatif_outcome} if we had intervened to make {self.X}={whatif_treatment}, given that {interv_stry} and {interv_strx}.")
 
         return pnps
 

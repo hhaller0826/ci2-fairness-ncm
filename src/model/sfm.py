@@ -33,10 +33,10 @@ class SFM(SCM):
         return ret
     
     def print_projection(self):
-        print(f'Protected Attribute: {self.assignments['X']}')
-        print(f'Confounders:         {self.assignments.get('Z', None)}')
-        print(f'Mediators:           {self.assignments.get('W', None)}')
-        print(f'Outcome:             {self.assignments['Y']}')
+        print(f"Protected Attribute: {self.assignments['X']}")
+        print(f"Confounders:         {self.assignments.get('Z', None)}")
+        print(f"Mediators:           {self.assignments.get('W', None)}")
+        print(f"Outcome:             {self.assignments['Y']}")
 
     def add_predictor(self, prediction_model):
         self.v.remove(self.Yhat)
